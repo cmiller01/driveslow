@@ -8,14 +8,17 @@ import logging
 import time
 import aiosqlite
 import os
+import requests
+from urllib.parse import urlparse
 
 
 class ContentStore:
-    def __init__(self, name: str, base_dir="/output"):
+    def __init__(self, name: str, base_dir: str = "/output", extension: str = ".json"):
         self.name = name
         self.base_dir = Path(base_dir) / name
         self.db_path = self.base_dir / "content.db"
         self.storage_path = self.base_dir / "content"
+        self.extension = extension
 
         # Ensure directories exist
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -40,8 +43,10 @@ class ContentStore:
 
     def get_file_path(self, dt: datetime, content_hash: str) -> Path:
         return (
-            self.storage_path / dt.strftime("%Y-%m-%d") / f'{dt.strftime("%H-%M-%S")}_{content_hash[:6]}'
-        )
+            self.storage_path
+            / dt.strftime("%Y-%m-%d")
+            / f'{dt.strftime("%H-%M-%S")}_{content_hash[:6]}'
+        ).with_suffix(self.extension)
 
     async def store_content(
         self, content: bytes, url: str, content_type: str
@@ -103,11 +108,12 @@ class Fetcher:
         urls: list[str],
         interval: int = 15,
         output_dir: str = "/output",
+        extension: str = ".json",
     ):
         self.name = name
         self.urls = urls
         self.interval = interval
-        self.store = ContentStore(name=name, base_dir=output_dir)
+        self.store = ContentStore(name=name, base_dir=output_dir, extension=extension)
         self.setup_logging()
 
     def setup_logging(self):
@@ -172,7 +178,7 @@ async def run_fetchers(fetchers):
 
 
 def main():
-    output_dir = os.getenv("OUTPUT_DIR", "/output")
+    output_dir = os.getenv("OUTPUT_DIR", "./output")
     interval = int(os.getenv("FETCH_INTERVAL", "15"))
 
     # Example of using multiple named fetchers
@@ -189,6 +195,25 @@ def main():
             "rwis", weather_urls, interval=interval, output_dir=output_dir
         ),  # roadside weather
     ]
+    # something special for cctv
+    resp = requests.get("https://cwwp2.dot.ca.gov/data/d3/cctv/cctvStatusD03.json")
+    cctv = resp.json()
+    cams = cctv.get("data")
+    for c in cams:
+        img_url = c.get("cctv").get("imageData").get("static").get("currentImageURL")
+        if img_url:
+            name = urlparse(img_url)
+            name = os.path.basename(name.path)
+            name, _ = os.path.splitext(name)
+            fetchers.append(
+                Fetcher(
+                    f"cc_{name}",
+                    urls=[img_url],
+                    interval=interval,
+                    output_dir=output_dir,
+                    extension=".jpg",
+                )
+            )
 
     try:
         # Run all fetchers concurrently
