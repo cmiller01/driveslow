@@ -11,7 +11,7 @@ package-mode = false
 python = "^3.12"
 aiohttp = "^3.11.11"
 aiosqlite = "^0.20.0"
-requests = "^2.32.3"
+requests = "^2.32.4"
 
 
 [build-system]
