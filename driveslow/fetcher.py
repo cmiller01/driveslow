@@ -12,6 +12,7 @@ import os
 import requests
 from urllib.parse import urlparse
 
+logger = structlog.get_logger()
 
 class ContentStore:
     def __init__(self, name: str, base_dir: str = "/output", extension: str = ".json"):
@@ -199,6 +200,7 @@ def main():
 
     output_dir = os.getenv("OUTPUT_DIR", "./output")
     interval = int(os.getenv("FETCH_INTERVAL", "15"))
+    logger.info("starting up", output_dir=output_dir, interval=interval)
 
     # Example of using multiple named fetchers
     cc_urls = [
@@ -215,6 +217,7 @@ def main():
         ),  # roadside weather
     ]
     # something special for cctv
+    logger.info("getting cctv list")
     resp = requests.get("https://cwwp2.dot.ca.gov/data/d3/cctv/cctvStatusD03.json")
     cctv = resp.json()
     cams = cctv.get("data")
@@ -234,6 +237,7 @@ def main():
                 )
             )
 
+    logger.info("starting fetchers")
     try:
         # Run all fetchers concurrently
         asyncio.run(run_fetchers(fetchers))
