@@ -1,18 +1,20 @@
 import asyncio
-import aiohttp
-import sqlite3
 import hashlib
+import logging
+import os
+import sqlite3
+import time
 from datetime import datetime
 from pathlib import Path
-import structlog
-import logging
-import time
-import aiosqlite
-import os
-import requests
 from urllib.parse import urlparse
 
+import aiohttp
+import aiosqlite
+import requests
+import structlog
+
 logger = structlog.get_logger()
+
 
 class ContentStore:
     def __init__(self, name: str, base_dir: str = "/output", extension: str = ".json"):
@@ -47,12 +49,10 @@ class ContentStore:
         return (
             self.storage_path
             / dt.strftime("%Y-%m-%d")
-            / f'{dt.strftime("%H-%M-%S")}_{content_hash[:6]}'
+            / f"{dt.strftime('%H-%M-%S')}_{content_hash[:6]}"
         ).with_suffix(self.extension)
 
-    async def store_content(
-        self, content: bytes, url: str, content_type: str
-    ) -> tuple[str, bool]:
+    async def store_content(self, content: bytes, url: str, content_type: str) -> tuple[str, bool]:
         """Store content and return (content_hash, is_new)"""
         now = datetime.now()
         now_iso = now.isoformat()
@@ -69,7 +69,7 @@ class ContentStore:
             if existing:
                 await db.execute(
                     """
-                    UPDATE content 
+                    UPDATE content
                     SET last_seen = ?
                     WHERE content_hash = ?
                 """,
@@ -83,8 +83,9 @@ class ContentStore:
 
                 await db.execute(
                     """
-                    INSERT INTO content 
-                    (content_hash, first_seen, last_seen, size_bytes, content_type, source_url, file_path)
+                    INSERT INTO content
+                    (content_hash, first_seen, last_seen, size_bytes, content_type,
+                     source_url, file_path)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
@@ -123,18 +124,12 @@ class Fetcher:
         try:
             async with session.get(url) as response:
                 if response.status != 200:
-                    self.logger.error(
-                        "Error fetching URL", url=url, status=response.status
-                    )
+                    self.logger.error("Error fetching URL", url=url, status=response.status)
                     return
 
                 content = await response.read()
-                content_type = response.headers.get(
-                    "content-type", "application/octet-stream"
-                )
-                content_hash, is_new = await self.store.store_content(
-                    content, url, content_type
-                )
+                content_type = response.headers.get("content-type", "application/octet-stream")
+                content_hash, is_new = await self.store.store_content(content, url, content_type)
 
                 elapsed = time.time() - start
                 status = "new" if is_new else "duplicate"
@@ -155,9 +150,7 @@ class Fetcher:
             await asyncio.gather(*tasks)
 
     async def run_forever(self):
-        self.logger.info(
-            "Starting fetcher", fetcher=self.name, url_count=len(self.urls)
-        )
+        self.logger.info("Starting fetcher", fetcher=self.name, url_count=len(self.urls))
         try:
             while True:
                 start = time.time()
@@ -212,9 +205,7 @@ def main():
 
     fetchers = [
         Fetcher("cc", cc_urls, interval=interval, output_dir=output_dir),  # chains
-        Fetcher(
-            "rwis", weather_urls, interval=interval, output_dir=output_dir
-        ),  # roadside weather
+        Fetcher("rwis", weather_urls, interval=interval, output_dir=output_dir),  # roadside weather
     ]
     # something special for cctv
     logger.info("getting cctv list")
