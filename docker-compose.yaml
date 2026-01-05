@@ -1,8 +1,0 @@
-services:
-  fetcher:
-    build: .
-    restart: unless-stopped
-    volumes:
-      - ./output:/output
-    environment:
-      - FETCH_INTERVAL=15
