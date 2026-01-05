@@ -5,6 +5,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 import structlog
+import logging
 import time
 import aiosqlite
 import os
@@ -119,19 +120,23 @@ class Fetcher:
     def setup_logging(self):
         log_path = self.store.base_dir / "fetcher.log"
 
+        # Configure standard logging
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(message)s",
+            handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
+        )
+
         # Configure structlog
         structlog.configure(
             processors=[
-                structlog.contextvars.merge_contextvars,
-                structlog.processors.add_log_level,
+                structlog.stdlib.add_log_level,
                 structlog.processors.TimeStamper(fmt="iso"),
-                structlog.processors.StackInfoRenderer(),
-                structlog.processors.format_exc_info,
                 structlog.processors.JSONRenderer(),
             ],
-            wrapper_class=structlog.make_filtering_bound_logger(structlog.INFO),
+            wrapper_class=structlog.stdlib.BoundLogger,
             context_class=dict,
-            logger_factory=structlog.PrintLoggerFactory(file=open(log_path, "a")),
+            logger_factory=structlog.stdlib.LoggerFactory(),
             cache_logger_on_first_use=True,
         )
 
