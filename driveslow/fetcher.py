@@ -4,6 +4,7 @@ import sqlite3
 import hashlib
 from datetime import datetime
 from pathlib import Path
+import structlog
 import logging
 import time
 import aiosqlite
@@ -11,6 +12,7 @@ import os
 import requests
 from urllib.parse import urlparse
 
+logger = structlog.get_logger()
 
 class ContentStore:
     def __init__(self, name: str, base_dir: str = "/output", extension: str = ".json"):
@@ -114,23 +116,16 @@ class Fetcher:
         self.urls = urls
         self.interval = interval
         self.store = ContentStore(name=name, base_dir=output_dir, extension=extension)
-        self.setup_logging()
-
-    def setup_logging(self):
-        log_path = self.store.base_dir / "fetcher.log"
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
-        )
-        self.logger = logging.getLogger(self.name)
+        self.logger = structlog.get_logger(self.name)
 
     async def fetch_url(self, session: aiohttp.ClientSession, url: str):
         start = time.time()
         try:
             async with session.get(url) as response:
                 if response.status != 200:
-                    self.logger.error(f"Error fetching {url}: HTTP {response.status}")
+                    self.logger.error(
+                        "Error fetching URL", url=url, status=response.status
+                    )
                     return
 
                 content = await response.read()
@@ -144,11 +139,15 @@ class Fetcher:
                 elapsed = time.time() - start
                 status = "new" if is_new else "duplicate"
                 self.logger.info(
-                    f"{url}: {status} content {content_hash[:8]}... ({elapsed:.2f}s)"
+                    "Content fetched",
+                    url=url,
+                    status=status,
+                    content_hash=content_hash[:8],
+                    elapsed=f"{elapsed:.2f}s",
                 )
 
         except Exception as e:
-            self.logger.error(f"Error fetching {url}: {e}")
+            self.logger.error("Error fetching URL", url=url, error=str(e))
 
     async def fetch_all(self):
         async with aiohttp.ClientSession() as session:
@@ -156,20 +155,22 @@ class Fetcher:
             await asyncio.gather(*tasks)
 
     async def run_forever(self):
-        self.logger.info(f"Starting fetcher '{self.name}' for {len(self.urls)} URLs")
+        self.logger.info(
+            "Starting fetcher", fetcher=self.name, url_count=len(self.urls)
+        )
         try:
             while True:
                 start = time.time()
                 try:
                     await self.fetch_all()
                 except Exception as e:
-                    self.logger.error(f"Error in fetch cycle: {e}")
+                    self.logger.error("Error in fetch cycle", error=str(e))
 
                 elapsed = time.time() - start
                 if elapsed < self.interval:
                     await asyncio.sleep(self.interval - elapsed)
         except Exception as e:
-            self.logger.error(f"Fatal error: {e}")
+            self.logger.error("Fatal error", error=str(e))
             raise
 
 
@@ -178,8 +179,28 @@ async def run_fetchers(fetchers):
 
 
 def main():
+    # Configure logging once for the entire application
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        handlers=[logging.StreamHandler()],
+    )
+
+    structlog.configure(
+        processors=[
+            structlog.stdlib.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.dev.ConsoleRenderer(),
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
     output_dir = os.getenv("OUTPUT_DIR", "./output")
     interval = int(os.getenv("FETCH_INTERVAL", "15"))
+    logger.info("starting up", output_dir=output_dir, interval=interval)
 
     # Example of using multiple named fetchers
     cc_urls = [
@@ -196,6 +217,7 @@ def main():
         ),  # roadside weather
     ]
     # something special for cctv
+    logger.info("getting cctv list")
     resp = requests.get("https://cwwp2.dot.ca.gov/data/d3/cctv/cctvStatusD03.json")
     cctv = resp.json()
     cams = cctv.get("data")
@@ -215,11 +237,12 @@ def main():
                 )
             )
 
+    logger.info("starting fetchers")
     try:
         # Run all fetchers concurrently
         asyncio.run(run_fetchers(fetchers))
     except KeyboardInterrupt:
-        logging.info("Shutting down fetchers")
+        structlog.get_logger().info("Shutting down fetchers")
 
 
 if __name__ == "__main__":
