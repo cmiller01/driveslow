@@ -115,29 +115,6 @@ class Fetcher:
         self.urls = urls
         self.interval = interval
         self.store = ContentStore(name=name, base_dir=output_dir, extension=extension)
-        self.setup_logging()
-
-    def setup_logging(self):
-        # Configure standard logging to stdout only
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(message)s",
-            handlers=[logging.StreamHandler()],
-        )
-
-        # Configure structlog with console renderer
-        structlog.configure(
-            processors=[
-                structlog.stdlib.add_log_level,
-                structlog.processors.TimeStamper(fmt="iso"),
-                structlog.dev.ConsoleRenderer(),
-            ],
-            wrapper_class=structlog.stdlib.BoundLogger,
-            context_class=dict,
-            logger_factory=structlog.stdlib.LoggerFactory(),
-            cache_logger_on_first_use=True,
-        )
-
         self.logger = structlog.get_logger(self.name)
 
     async def fetch_url(self, session: aiohttp.ClientSession, url: str):
@@ -201,6 +178,25 @@ async def run_fetchers(fetchers):
 
 
 def main():
+    # Configure logging once for the entire application
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        handlers=[logging.StreamHandler()],
+    )
+
+    structlog.configure(
+        processors=[
+            structlog.stdlib.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.dev.ConsoleRenderer(),
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
     output_dir = os.getenv("OUTPUT_DIR", "./output")
     interval = int(os.getenv("FETCH_INTERVAL", "15"))
 
