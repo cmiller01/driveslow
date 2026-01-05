@@ -118,21 +118,19 @@ class Fetcher:
         self.setup_logging()
 
     def setup_logging(self):
-        log_path = self.store.base_dir / "fetcher.log"
-
-        # Configure standard logging
+        # Configure standard logging to stdout only
         logging.basicConfig(
             level=logging.INFO,
             format="%(message)s",
-            handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
+            handlers=[logging.StreamHandler()],
         )
 
-        # Configure structlog
+        # Configure structlog with console renderer
         structlog.configure(
             processors=[
                 structlog.stdlib.add_log_level,
                 structlog.processors.TimeStamper(fmt="iso"),
-                structlog.processors.JSONRenderer(),
+                structlog.dev.ConsoleRenderer(),
             ],
             wrapper_class=structlog.stdlib.BoundLogger,
             context_class=dict,
