@@ -8,5 +8,14 @@ can we use data from a variety of sources, like traffic webcams, weather and sea
 
 ## developing
 
-you'll need python3.10ish, trying to keep minimal dependencies for now
+you'll need python 3.12+. This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
+
+To get started:
+```bash
+# Install dependencies
+uv sync
+
+# Run Python with uv
+uv run python driveslow/fetcher.py
+```
 

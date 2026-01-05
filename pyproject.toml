@@ -1,19 +1,22 @@
-[tool.poetry]
+[project]
 name = "driveslow"
 version = "0.1.0"
 description = ""
-authors = ["cmiller01 <christian.david.miller@gmail.com>"]
-license = "MIT"
+authors = [
+    { name = "cmiller01", email = "christian.david.miller@gmail.com" }
+]
+license = { text = "MIT" }
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.11.11",
+    "aiosqlite>=0.20.0",
+    "requests>=2.32.3",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-aiohttp = "^3.11.11"
-aiosqlite = "^0.20.0"
-requests = "^2.32.3"
-
+[tool.hatch.build.targets.wheel]
+packages = ["driveslow"]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
